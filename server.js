@@ -10,29 +10,26 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 app.use(cors());
 app.use(express.json());
-
-// Serve frontend estático
 app.use(express.static(path.join(__dirname, 'public')));
 
-const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
-const MODEL         = 'claude-sonnet-4-20250514';
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
-async function callClaude(messages, maxTokens = 4000) {
-  const res = await fetch(ANTHROPIC_API, {
+async function callGemini(parts) {
+  const url = `${GEMINI_URL}?key=${process.env.GEMINI_API_KEY}`;
+  const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, messages })
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts }],
+      generationConfig: { temperature: 0 }
+    })
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error?.message || 'Anthropic error ' + res.status);
+    throw new Error(err?.error?.message || 'Gemini error ' + res.status);
   }
   const data = await res.json();
-  return data.content?.map(i => i.text || '').join('').trim();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
 }
 
 app.get('/health', (_, res) => res.json({ ok: true }));
@@ -43,7 +40,7 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
 
     const base64    = req.file.buffer.toString('base64');
     const mediaType = req.file.mimetype || 'image/jpeg';
-    const imgBlock  = { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } };
+    const imgPart   = { inline_data: { mime_type: mediaType, data: base64 } };
 
     const readPrompt = `Você vai ler uma tabela de dados financeiros. Cada linha tem 10 colunas.
 
@@ -59,7 +56,7 @@ Conte as células da esquerda para a direita:
 
 Leia TODAS as linhas visíveis. Não pule nenhuma. Não some ainda.`;
 
-    const step1 = await callClaude([{ role: 'user', content: [imgBlock, { type: 'text', text: readPrompt }] }]);
+    const step1 = await callGemini([imgPart, { text: readPrompt }]);
 
     const sumPrompt = `Abaixo está a leitura linha a linha de uma tabela:
 
@@ -75,7 +72,7 @@ Some todos os valores de cada posição:
 Retorne APENAS este JSON sem markdown:
 {"cadastros":<int>,"valor_ftd":<float>,"qtd_ftd":<int>,"valor_deposito":<float>,"qtd_deposito":<int>}`;
 
-    const step2 = await callClaude([{ role: 'user', content: sumPrompt }], 500);
+    const step2 = await callGemini([{ text: sumPrompt }]);
     const clean = step2.replace(/```json|```/g, '').trim();
 
     let parsed;
@@ -89,7 +86,6 @@ Retorne APENAS este JSON sem markdown:
   }
 });
 
-// Qualquer rota não encontrada serve o index.html
 app.get('*', (_, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const PORT = process.env.PORT || 3001;
