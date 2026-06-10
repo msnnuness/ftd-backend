@@ -12,15 +12,16 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-
-async function callGemini(parts) {
-  const url = `${GEMINI_URL}?key=${process.env.GEMINI_API_KEY}`;
+async function callGemini(contents) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`;
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': process.env.GEMINI_API_KEY
+    },
     body: JSON.stringify({
-      contents: [{ parts }],
+      contents,
       generationConfig: { temperature: 0 }
     })
   });
@@ -40,7 +41,6 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
 
     const base64    = req.file.buffer.toString('base64');
     const mediaType = req.file.mimetype || 'image/jpeg';
-    const imgPart   = { inline_data: { mime_type: mediaType, data: base64 } };
 
     const readPrompt = `Você vai ler uma tabela de dados financeiros. Cada linha tem 10 colunas.
 
@@ -56,7 +56,13 @@ Conte as células da esquerda para a direita:
 
 Leia TODAS as linhas visíveis. Não pule nenhuma. Não some ainda.`;
 
-    const step1 = await callGemini([imgPart, { text: readPrompt }]);
+    const step1 = await callGemini([{
+      role: 'user',
+      parts: [
+        { inline_data: { mime_type: mediaType, data: base64 } },
+        { text: readPrompt }
+      ]
+    }]);
 
     const sumPrompt = `Abaixo está a leitura linha a linha de uma tabela:
 
@@ -72,7 +78,7 @@ Some todos os valores de cada posição:
 Retorne APENAS este JSON sem markdown:
 {"cadastros":<int>,"valor_ftd":<float>,"qtd_ftd":<int>,"valor_deposito":<float>,"qtd_deposito":<int>}`;
 
-    const step2 = await callGemini([{ text: sumPrompt }]);
+    const step2 = await callGemini([{ role: 'user', parts: [{ text: sumPrompt }] }]);
     const clean = step2.replace(/```json|```/g, '').trim();
 
     let parsed;
