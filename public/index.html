@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Extrator FTD</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0F1117;
+      --surface: #181C27;
+      --card: #1E2333;
+      --border: #2A3048;
+      --border-light: #3A4460;
+      --accent: #A3E635;
+      --accent-dim: rgba(163,230,53,0.12);
+      --accent-border: rgba(163,230,53,0.3);
+      --text: #F0F4FF;
+      --muted: #7A8299;
+      --faint: #3A4460;
+      --danger: #FF5C5C;
+      --danger-bg: rgba(255,92,92,0.1);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding: 20px 24px 0;
+      max-width: 680px;
+      margin: 0 auto;
+    }
+    .header-top {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .badge {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+    .badge-text {
+      font-size: 11px; font-weight: 600;
+      letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent);
+    }
+    h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+    .count { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+
+    .tabs { display: flex; gap: 4px; }
+    .tab {
+      padding: 8px 20px; font-size: 13px; font-weight: 500;
+      cursor: pointer; border: none; border-radius: 8px;
+      background: transparent; color: var(--muted);
+      transition: all 0.15s; font-family: inherit;
+    }
+    .tab.active { background: var(--accent-dim); color: var(--accent); }
+
+    .content { padding: 24px; max-width: 680px; margin: 0 auto; }
+
+    /* Upload zone */
+    .upload-zone {
+      border: 1.5px dashed var(--border);
+      border-radius: 12px; overflow: hidden;
+      cursor: pointer;
+      background: var(--surface);
+      margin-bottom: 16px;
+      transition: all 0.15s;
+    }
+    .upload-zone:hover, .upload-zone.drag {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .upload-zone.has-image { cursor: default; border-color: var(--border-light); }
+    .upload-inner { padding: 48px 24px; text-align: center; }
+    .upload-icon {
+      width: 52px; height: 52px; border-radius: 14px;
+      background: var(--card); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px; font-size: 24px;
+    }
+    .upload-title { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+    .upload-hint { font-size: 13px; color: var(--muted); }
+
+    .preview-img { width: 100%; display: block; max-height: 240px; object-fit: cover; }
+    .preview-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; border-top: 1px solid var(--border);
+      background: var(--card);
+    }
+    .preview-name { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%; }
+    .change-btn {
+      font-size: 12px; color: var(--muted);
+      background: none; border: none; cursor: pointer;
+      padding: 2px 8px; border-radius: 6px; font-family: inherit;
+    }
+    .change-btn:hover { color: var(--text); }
+
+    /* Progress */
+    .progress {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 10px;
+      margin-bottom: 14px;
+    }
+    .spinner {
+      width: 14px; height: 14px; flex-shrink: 0;
+      border: 2px solid rgba(163,230,53,0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .progress-text { font-size: 13px; color: var(--muted); }
+
+    /* Button */
+    .analyze-btn {
+      width: 100%; padding: 13px;
+      font-size: 14px; font-weight: 600;
+      border: none; border-radius: 10px;
+      cursor: pointer; transition: all 0.15s;
+      background: var(--accent); color: #0F1117;
+      font-family: inherit;
+    }
+    .analyze-btn:disabled { background: var(--faint); color: var(--muted); cursor: not-allowed; }
+    .analyze-btn:not(:disabled):hover { background: #b8f03d; }
+
+    /* Error */
+    .error {
+      margin-top: 14px; padding: 12px 14px;
+      background: var(--danger-bg);
+      border: 1px solid rgba(255,92,92,0.25);
+      border-radius: 10px; font-size: 13px; color: var(--danger);
+    }
+
+    /* Results */
+    .divider {
+      display: flex; align-items: center; gap: 8px;
+      margin: 20px 0 14px;
+    }
+    .divider-line { flex: 1; height: 1px; background: var(--border); }
+    .divider-label {
+      font-size: 11px; font-weight: 600;
+      letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent);
+    }
+
+    .cards-big { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+    .cards-small { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .stat-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .stat-card.large { padding: 20px 20px 16px; }
+    .stat-label {
+      font-size: 11px; font-weight: 500;
+      letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+    }
+    .stat-value {
+      font-size: 22px; font-weight: 600;
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      color: var(--text); letter-spacing: -0.02em; line-height: 1.1;
+    }
+    .stat-card.large .stat-value { font-size: 28px; }
+
+    .conversion {
+      margin-top: 10px; padding: 10px 14px;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-border);
+      border-radius: 10px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .conversion-label { font-size: 12px; color: var(--muted); }
+    .conversion-value {
+      font-size: 14px; font-weight: 600;
+      font-family: monospace; color: var(--accent);
+    }
+
+    .debug-toggle {
+      margin-top: 10px; width: 100%; padding: 7px;
+      font-size: 12px; color: var(--muted);
+      background: none; border: 1px solid var(--border);
+      border-radius: 8px; cursor: pointer; font-family: inherit;
+    }
+    .debug-toggle:hover { border-color: var(--border-light); color: var(--text); }
+    .debug-box {
+      margin-top: 8px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 14px; max-height: 240px; overflow-y: auto;
+      display: none;
+    }
+    .debug-box.open { display: block; }
+    .debug-line {
+      font-size: 11px; font-family: monospace;
+      color: var(--muted); line-height: 1.8; white-space: pre-wrap;
+    }
+
+    /* History */
+    .empty { text-align: center; padding: 60px 0; color: var(--muted); }
+    .history-toolbar { display: flex; justify-content: flex-end; margin-bottom: 14px; }
+    .clear-btn {
+      font-size: 12px; color: var(--muted);
+      background: none; border: 1px solid var(--border);
+      border-radius: 8px; padding: 6px 14px;
+      cursor: pointer; font-family: inherit;
+    }
+    .clear-btn:hover { color: var(--danger); border-color: rgba(255,92,92,0.3); }
+    .history-item {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; margin-bottom: 10px; overflow: hidden;
+    }
+    .history-head {
+      padding: 10px 14px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .history-date { font-size: 12px; color: var(--muted); }
+    .history-badge {
+      font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--accent);
+      background: var(--accent-dim); padding: 2px 8px; border-radius: 20px;
+    }
+    .history-grid { display: grid; grid-template-columns: repeat(5, 1fr); }
+    .history-cell {
+      padding: 12px 14px;
+      border-right: 1px solid var(--border);
+    }
+    .history-cell:last-child { border-right: none; }
+    .history-cell-label {
+      font-size: 10px; font-weight: 500;
+      letter-spacing: 0.07em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 4px;
+    }
+    .history-cell-value {
+      font-size: 14px; font-weight: 600;
+      font-family: monospace; color: var(--text);
+    }
+
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div>
+      <div class="badge">
+        <div class="dot"></div>
+        <span class="badge-text">Relatório diário</span>
+      </div>
+      <h1>Extrator de métricas</h1>
+    </div>
+    <span class="count" id="countLabel"></span>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('upload')">Análise</button>
+    <button class="tab" onclick="switchTab('history')">Histórico</button>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- Upload tab -->
+  <div id="tab-upload">
+    <div class="upload-zone" id="uploadZone" onclick="handleZoneClick()">
+      <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFile(this.files[0])">
+
+      <div class="upload-inner" id="uploadInner">
+        <div class="upload-icon">⬆</div>
+        <p class="upload-title">Arraste o print ou clique para selecionar</p>
+        <p class="upload-hint">PNG, JPG, WEBP — máx. 10MB</p>
+      </div>
+
+      <div id="previewWrap" class="hidden">
+        <img id="previewImg" class="preview-img" alt="preview">
+        <div class="preview-bar">
+          <span class="preview-name" id="previewName"></span>
+          <button class="change-btn" onclick="clearImage(event)">Trocar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="progress hidden" id="progressBar">
+      <div class="spinner"></div>
+      <span class="progress-text" id="progressText">Analisando...</span>
+    </div>
+
+    <button class="analyze-btn" id="analyzeBtn" disabled onclick="analyze()">Extrair totais</button>
+
+    <div class="error hidden" id="errorBox"></div>
+
+    <div id="results" class="hidden">
+      <div class="divider">
+        <div class="divider-line"></div>
+        <span class="divider-label">Totais extraídos</span>
+        <div class="divider-line"></div>
+      </div>
+
+      <div class="cards-big">
+        <div class="stat-card large">
+          <span class="stat-label">Valor depósitos</span>
+          <span class="stat-value" id="r-vdep">—</span>
+        </div>
+        <div class="stat-card large">
+          <span class="stat-label">Valor FTD</span>
+          <span class="stat-value" id="r-vftd">—</span>
+        </div>
+      </div>
+      <div class="cards-small">
+        <div class="stat-card">
+          <span class="stat-label">Cadastros</span>
+          <span class="stat-value" id="r-cad">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Qtd FTD</span>
+          <span class="stat-value" id="r-qftd">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Qtd depósitos</span>
+          <span class="stat-value" id="r-qdep">—</span>
+        </div>
+      </div>
+
+      <div class="conversion hidden" id="conversionRow">
+        <span class="conversion-label">Taxa cadastro → FTD</span>
+        <span class="conversion-value" id="r-conv">—</span>
+      </div>
+
+      <button class="debug-toggle" onclick="toggleDebug()">Ver leitura linha a linha</button>
+      <div class="debug-box" id="debugBox"></div>
+    </div>
+  </div>
+
+  <!-- History tab -->
+  <div id="tab-history" class="hidden">
+    <div class="empty hidden" id="historyEmpty">Nenhuma análise salva ainda</div>
+    <div id="historyContent" class="hidden">
+      <div class="history-toolbar">
+        <button class="clear-btn" onclick="clearHistory()">Limpar histórico</button>
+      </div>
+      <div id="historyItems"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const STORAGE_KEY = 'ftd_history_v6';
+  let imageFile = null;
+  let debugText = '';
+  let debugOpen = false;
+
+  function fmt(val) {
+    if (val == null) return '—';
+    return '$' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function loadHistory() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+  }
+  function saveHistory(h) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(h)); } catch {} }
+
+  function $(id) { return document.getElementById(id); }
+  function show(id) { $(id).classList.remove('hidden'); }
+  function hide(id) { $(id).classList.add('hidden'); }
+
+  // ── Tabs ──
+  function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab')[tab === 'upload' ? 0 : 1].classList.add('active');
+    tab === 'upload' ? show('tab-upload') : hide('tab-upload');
+    tab === 'history' ? show('tab-history') : hide('tab-history');
+    if (tab === 'history') renderHistory();
+  }
+
+  // ── File handling ──
+  function handleZoneClick() {
+    if (!imageFile) $('fileInput').click();
+  }
+
+  function handleFile(file) {
+    if (!file) return;
+    imageFile = file;
+    const reader = new FileReader();
+    reader.onload = e => {
+      $('previewImg').src = e.target.result;
+      $('previewName').textContent = file.name;
+      hide('uploadInner');
+      show('previewWrap');
+      $('uploadZone').classList.add('has-image');
+      $('analyzeBtn').disabled = false;
+      hide('results');
+      hide('errorBox');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearImage(e) {
+    e.stopPropagation();
+    imageFile = null;
+    $('previewImg').src = '';
+    $('fileInput').value = '';
+    hide('previewWrap');
+    show('uploadInner');
+    $('uploadZone').classList.remove('has-image');
+    $('analyzeBtn').disabled = true;
+    hide('results');
+    hide('errorBox');
+  }
+
+  // Drag & drop
+  const zone = $('uploadZone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag');
+    handleFile(e.dataTransfer.files[0]);
+  });
+
+  // ── Analyze ──
+  async function analyze() {
+    if (!imageFile) return;
+    $('analyzeBtn').disabled = true;
+    hide('errorBox'); hide('results');
+    show('progressBar');
+    debugText = ''; debugOpen = false;
+    $('debugBox').classList.remove('open');
+
+    try {
+      $('progressText').textContent = 'Enviando imagem...';
+      const formData = new FormData();
+      formData.append('image', imageFile);
+
+      $('progressText').textContent = 'Lendo cada linha da tabela...';
+      const res = await fetch('/analyze', { method: 'POST', body: formData });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || 'Erro ' + res.status);
+      }
+
+      $('progressText').textContent = 'Calculando totais...';
+      const json = await res.json();
+      const d = json.data;
+
+      $('r-vdep').textContent  = fmt(d.valor_deposito);
+      $('r-vftd').textContent  = fmt(d.valor_ftd);
+      $('r-cad').textContent   = d.cadastros ?? '—';
+      $('r-qftd').textContent  = d.qtd_ftd ?? '—';
+      $('r-qdep').textContent  = d.qtd_deposito ?? '—';
+
+      if (d.cadastros > 0 && d.qtd_ftd != null) {
+        $('r-conv').textContent = ((d.qtd_ftd / d.cadastros) * 100).toFixed(1) + '%';
+        show('conversionRow');
+      } else {
+        hide('conversionRow');
+      }
+
+      debugText = json.debug || '';
+      $('debugBox').innerHTML = debugText.split('\n').map(l => `<div class="debug-line">${l}</div>`).join('');
+      show('results');
+
+      const entry = { date: new Date().toLocaleString('pt-BR'), ...d };
+      const history = loadHistory();
+      const updated = [entry, ...history].slice(0, 90);
+      saveHistory(updated);
+      updateCount();
+
+    } catch (e) {
+      $('errorBox').textContent = e.message;
+      show('errorBox');
+    } finally {
+      hide('progressBar');
+      $('analyzeBtn').disabled = false;
+    }
+  }
+
+  function toggleDebug() {
+    debugOpen = !debugOpen;
+    $('debugBox').classList.toggle('open', debugOpen);
+    $('debugBox').previousElementSibling.textContent = debugOpen ? 'Ocultar leitura linha a linha' : 'Ver leitura linha a linha';
+  }
+
+  // ── History ──
+  function updateCount() {
+    const h = loadHistory();
+    $('countLabel').textContent = h.length ? `${h.length} análise${h.length !== 1 ? 's' : ''}` : '';
+  }
+
+  function renderHistory() {
+    const history = loadHistory();
+    if (!history.length) {
+      show('historyEmpty'); hide('historyContent'); return;
+    }
+    hide('historyEmpty'); show('historyContent');
+    $('historyItems').innerHTML = history.map((h, i) => `
+      <div class="history-item">
+        <div class="history-head">
+          <span class="history-date">${h.date}</span>
+          ${i === 0 ? '<span class="history-badge">Mais recente</span>' : ''}
+        </div>
+        <div class="history-grid">
+          <div class="history-cell"><div class="history-cell-label">Cad.</div><div class="history-cell-value">${h.cadastros ?? '—'}</div></div>
+          <div class="history-cell"><div class="history-cell-label">Qtd FTD</div><div class="history-cell-value">${h.qtd_ftd ?? '—'}</div></div>
+          <div class="history-cell"><div class="history-cell-label">Valor FTD</div><div class="history-cell-value" style="font-size:12px">${fmt(h.valor_ftd)}</div></div>
+          <div class="history-cell"><div class="history-cell-label">Qtd dep.</div><div class="history-cell-value">${h.qtd_deposito ?? '—'}</div></div>
+          <div class="history-cell"><div class="history-cell-label">Valor dep.</div><div class="history-cell-value" style="font-size:12px">${fmt(h.valor_deposito)}</div></div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function clearHistory() {
+    saveHistory([]);
+    renderHistory();
+    updateCount();
+  }
+
+  updateCount();
+</script>
+</body>
+</html>
